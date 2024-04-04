@@ -12,7 +12,6 @@ local function serializeValue(value)
 	elseif valueType == "Color3" then
 		return {["$type"] = "Color3", r = value.r, g = value.g, b = value.b}
 	elseif valueType == "CFrame" then
-		-- Note: Simplified; consider storing all components for precision
 		return {["$type"] = "CFrame", position = serializeValue(value.Position)}
 	elseif valueType == "BrickColor" then
 		return {["$type"] = "BrickColor", name = value.Name}
