@@ -5,9 +5,7 @@ local Serializer = {}
 
 local function serializeValue(value)
 	local valueType = typeof(value)
-	if valueType == "EnumItem" then
-		return {["$type"] = "EnumItem", ["EnumType"] = tostring(value.EnumType), ["Value"] = value.Name}
-	elseif valueType == "Vector3" then
+	if valueType == "Vector3" then
 		return {["$type"] = "Vector3", x = value.X, y = value.Y, z = value.Z}
 	elseif valueType == "Color3" then
 		return {["$type"] = "Color3", r = value.r, g = value.g, b = value.b}
@@ -15,36 +13,36 @@ local function serializeValue(value)
 		return {["$type"] = "CFrame", position = serializeValue(value.Position)}
 	elseif valueType == "BrickColor" then
 		return {["$type"] = "BrickColor", name = value.Name}
+	elseif valueType == "EnumItem" then
+		return {["$type"] = "EnumItem", enumType = tostring(value.EnumType), name = value.Name}
 	else
 		return value
 	end
 end
 
-local function deserializeValue(serialized)
-	if typeof(serialized) == "table" and serialized["$type"] then
-		local valueType = serialized["$type"]
-		if valueType == "EnumItem" then
-			return Enum[serialized["EnumType"]][serialized["Value"]]
-		elseif valueType == "Vector3" then
-			return Vector3.new(serialized.x, serialized.y, serialized.z)
-		elseif valueType == "Color3" then
-			return Color3.new(serialized.r, serialized.g, serialized.b)
-		elseif valueType == "CFrame" then
-			local pos = deserializeValue(serialized.position)
-			return CFrame.new(pos)
-		elseif valueType == "BrickColor" then
-			return BrickColor.new(serialized.name)
+local function deserializeValue(value)
+	if type(value) == "table" and value["$type"] then
+		local t = value["$type"]
+		if t == "Vector3" then
+			return Vector3.new(value.x, value.y, value.z)
+		elseif t == "Color3" then
+			return Color3.new(value.r, value.g, value.b)
+		elseif t == "CFrame" then
+			return CFrame.new(value.position.x, value.position.y, value.position.z)
+		elseif t == "BrickColor" then
+			return BrickColor.new(value.name)
+		elseif t == "EnumItem" then
+			return Enum[value.enumType][value.name]
 		end
 	else
-		return serialized
+		return value
 	end
 end
 
 function Serializer.EncodeToJson(instance)
 	local function serializeInstance(inst)
 		local serialized = {["$className"] = inst.ClassName, ["$children"] = {}}
-		local props = Data[inst.ClassName] or {}
-		for _, propName in ipairs(props) do
+		for _, propName in ipairs(Data) do
 			local success, value = pcall(function() return inst[propName] end)
 			if success then
 				serialized[propName] = serializeValue(value)
@@ -59,31 +57,33 @@ function Serializer.EncodeToJson(instance)
 end
 
 function Serializer.DecodeFromJson(json)
+	local serializedInstance = HttpService:JSONDecode(json)
 	local function deserializeInstance(serialized)
-		if not serialized or not serialized["$className"] then return end
+		if not serialized["$className"] then return end
 		local instance = Instance.new(serialized["$className"])
 		for propName, propValue in pairs(serialized) do
 			if propName ~= "$className" and propName ~= "$children" then
 				local success = pcall(function() instance[propName] = deserializeValue(propValue) end)
 				if not success then
-					warn("Failed to set property:", propName)
+					warn("Failed to set property", propName, "on", serialized["$className"])
 				end
 			end
 		end
 		for _, childSerialized in ipairs(serialized["$children"]) do
-			local child = deserializeInstance(childSerialized)
-			if child then child.Parent = instance end
+			local childInstance = deserializeInstance(childSerialized)
+			if childInstance then
+				childInstance.Parent = instance
+			end
 		end
 		return instance
 	end
-	return deserializeInstance(HttpService:JSONDecode(json))
+	return deserializeInstance(serializedInstance)
 end
 
 function Serializer.Copy(instance)
 	local function copyInstance(inst)
 		local newInstance = Instance.new(inst.ClassName)
-		local props = Data[inst.ClassName] or {}
-		for _, propName in ipairs(props) do
+		for _, propName in ipairs(Data) do
 			local success, value = pcall(function() return inst[propName] end)
 			if success then
 				pcall(function() newInstance[propName] = value end)
